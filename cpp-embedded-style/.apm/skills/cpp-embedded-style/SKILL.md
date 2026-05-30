@@ -44,12 +44,7 @@ Every new class header should follow this structure exactly:
 
 class MotorDriver {
 public:
-    MotorDriver(const MotorDriver&)            = delete;
-    MotorDriver& operator=(const MotorDriver&) = delete;
-    MotorDriver(MotorDriver&&)                 = delete;
-    MotorDriver& operator=(MotorDriver&&)      = delete;
-
-    explicit MotorDriver(uint8_t enPin, uint8_t dirPin);
+    MotorDriver(uint8_t enPin, uint8_t dirPin);
 
     void        start();
     void        stop();
@@ -142,31 +137,6 @@ void Driver::reconfigure(const Config& cfg) {
 Each class owns exactly one hardware subsystem or one UI concern.
 `main.cpp` wires them together; the classes themselves don't know about each other
 unless explicitly injected.
-
-### Delete copy and move for hardware wrapper classes
-
-A class that owns a hardware peripheral must not be copyable or movable — duplicating
-the object would produce two instances fighting over the same hardware resource.
-Explicitly delete all four special members in the class declaration:
-
-```cpp
-class MotorDriver {
-public:
-    MotorDriver(const MotorDriver&)            = delete;
-    MotorDriver& operator=(const MotorDriver&) = delete;
-    MotorDriver(MotorDriver&&)                 = delete;
-    MotorDriver& operator=(MotorDriver&&)      = delete;
-
-    // … normal public interface …
-};
-```
-
-Deleting them explicitly produces a clear compiler error at the misuse site rather than
-a silent runtime hardware conflict. Always place the four deleted declarations at the **top
-of `public:`**, before the constructor, so they are immediately visible when reading the
-header. See the canonical header skeleton in §1 for the expected layout.
-
----
 
 ## 4. Hardware Access Idioms
 

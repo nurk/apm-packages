@@ -360,7 +360,20 @@ board target, and URLs for all non-standard libraries used:
 ## 7. Formatting
 
 - **Indentation:** 4 spaces, no tabs.
-- **Brace style:** K&R — opening brace on the same line as the statement or function signature.
+- **Brace style:** K&R — opening brace on the same line as the statement or function
+  signature; `else` on the same line as the closing brace of the preceding `if`:
+
+```cpp
+if (speed > MAX_SPEED) {
+    speed = MAX_SPEED;
+} else if (speed == 0) {
+    stop();
+} else {
+    applyPwm(speed);
+}
+```
+
+  Always use braces, even for single-statement bodies.
 - **Blank lines:** one blank line between methods in `.cpp`; two blank lines between
   unrelated logical sections in `main.cpp`.
 - **Multi-line argument lists:** align continuation lines to the column after the opening `(`:

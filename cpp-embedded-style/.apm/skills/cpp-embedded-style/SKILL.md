@@ -19,7 +19,8 @@ Apply these guidelines every time you generate or modify C++ code for this proje
 - One class per `.h` / `.cpp` pair; filename matches the class name exactly (PascalCase).
 - Header guards use `#ifndef PROJECT_CLASSNAME_H` / `#define ...` / `#endif //PROJECT_CLASSNAME_H`.
   Replace `PROJECT` with the project name in SCREAMING_SNAKE_CASE.
-- Include ordering (each group blank-line separated):
+- Include style: always use angle brackets (`#include <...>`), never double quotes (`#include "..."`).
+- Include ordering:
     1. Own header (`#include <ClassName.h>`)
     2. Arduino / framework headers (`<Arduino.h>`, `<Wire.h>`, `<SPI.h>`, …)
     3. Architecture low-level headers (`<avr/io.h>`, `<avr/interrupt.h>`, …)

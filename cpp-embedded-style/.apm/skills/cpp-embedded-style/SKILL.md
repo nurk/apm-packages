@@ -2,12 +2,13 @@
 name: cpp-embedded-style
 description: >
   Coding style and architecture guidelines for embedded C++ projects targeting
-  Arduino-framework microcontrollers (AVR / megaAVR / SAM / ESP, via PlatformIO
-  or the Arduino IDE). Covers naming conventions, class design, hardware
-  abstraction patterns, comment style, and ISR / peripheral access idioms.
+  Arduino-framework microcontrollers on modern AVR cores (megaAVR 0-series,
+  AVR-DA/DB/DD, tinyAVR 2-series) via PlatformIO or the Arduino IDE. Covers
+  naming conventions, class design, hardware abstraction patterns, comment style,
+  and ISR / peripheral access idioms.
   ALWAYS load this skill when: writing any .cpp or .h file, generating a new class,
   adding a method, reviewing code, or when the project uses Arduino, PlatformIO,
-  AVR, ATmega, ESP, or any embedded C++ framework. Apply without being asked.
+  AVR, ATmega, or any AVR embedded C++ framework. Apply without being asked.
 ---
 
 Apply these guidelines every time you generate or modify C++ code for this project.
@@ -26,6 +27,48 @@ Apply these guidelines every time you generate or modify C++ code for this proje
     3. Architecture low-level headers (`<avr/io.h>`, `<avr/interrupt.h>`, …)
     4. Third-party library headers
     5. Project-local headers
+- Some architecture headers are already pulled in transitively by `<Arduino.h>` (e.g.
+  `<avr/pgmspace.h>`) and do not need to be listed explicitly. Others are **not** included
+  transitively and must be listed (e.g. `<avr/atomic.h>` for `ATOMIC_BLOCK`). When in doubt,
+  add the explicit include — it is always safe to include a header more than once.
+
+### Canonical header file skeleton
+
+Every new class header should follow this structure exactly:
+
+```cpp
+#ifndef MYPROJECT_MOTORDRIVER_H
+#define MYPROJECT_MOTORDRIVER_H
+
+#include <Arduino.h>
+
+class MotorDriver {
+public:
+    MotorDriver(const MotorDriver&)            = delete;
+    MotorDriver& operator=(const MotorDriver&) = delete;
+    MotorDriver(MotorDriver&&)                 = delete;
+    MotorDriver& operator=(MotorDriver&&)      = delete;
+
+    explicit MotorDriver(uint8_t enPin, uint8_t dirPin);
+
+    void        start();
+    void        stop();
+    void        setSpeed(uint8_t speed);
+    bool        isRunning()  const;
+
+private:
+    void applyPwm(uint8_t duty);
+
+    uint8_t enPin;
+    uint8_t dirPin;
+    bool    running;
+    uint8_t currentSpeed;
+};
+
+#endif // MYPROJECT_MOTORDRIVER_H
+```
+
+Order within the class: deleted specials → constructor(s) → public methods → private methods → private members.
 
 ---
 
@@ -42,7 +85,7 @@ Apply these guidelines every time you generate or modify C++ code for this proje
 | Function parameters               | camelCase                   | `targetRpm`, `ledPin`                     |
 | `#define` pin / hardware constants| SCREAMING_SNAKE_CASE        | `MOTOR_EN`, `STATUS_LED`                  |
 | Enum values                       | SCREAMING_SNAKE_CASE        | `IDLE`, `RUNNING`, `ERROR`                |
-| ISR vectors                       | MCU names verbatim          | `TIMER1_COMPA_vect`, `PORTA_PORT_vect`    |
+| ISR vectors                       | MCU names verbatim          | `TCB0_INT_vect`, `TCA0_OVF_vect`, `PORTA_PORT_vect` |
 
 ---
 
@@ -87,7 +130,7 @@ When an operation must temporarily change hardware state, save and restore the o
 
 ```cpp
 void Driver::reconfigure(const Config& cfg) {
-    const boolean wasRunning = isRunning;
+    const bool wasRunning = isRunning;
     stop();
     // … apply new configuration to hardware …
     if (wasRunning) start();
@@ -99,6 +142,29 @@ void Driver::reconfigure(const Config& cfg) {
 Each class owns exactly one hardware subsystem or one UI concern.
 `main.cpp` wires them together; the classes themselves don't know about each other
 unless explicitly injected.
+
+### Delete copy and move for hardware wrapper classes
+
+A class that owns a hardware peripheral must not be copyable or movable — duplicating
+the object would produce two instances fighting over the same hardware resource.
+Explicitly delete all four special members in the class declaration:
+
+```cpp
+class MotorDriver {
+public:
+    MotorDriver(const MotorDriver&)            = delete;
+    MotorDriver& operator=(const MotorDriver&) = delete;
+    MotorDriver(MotorDriver&&)                 = delete;
+    MotorDriver& operator=(MotorDriver&&)      = delete;
+
+    // … normal public interface …
+};
+```
+
+Deleting them explicitly produces a clear compiler error at the misuse site rather than
+a silent runtime hardware conflict. Always place the four deleted declarations at the **top
+of `public:`**, before the constructor, so they are immediately visible when reading the
+header. See the canonical header skeleton in §1 for the expected layout.
 
 ---
 
@@ -113,16 +179,47 @@ unless explicitly injected.
 
 ```cpp
 // main.cpp
-ISR(TIMER1_COMPA_vect) {
-    PORTB.OUTTGL    = PIN0_bm;
-    TIMER1.INTFLAGS = CAPT_bm;
+ISR(TCB0_INT_vect) {
+    PORTB.OUTTGL  = PIN0_bm;
+    TCB0.INTFLAGS = TCB_CAPT_bm;  // clear the interrupt flag
 }
 ```
 
-### Pin initialisation (performance-critical paths)
+### Pin initialisation
 
-Use `digitalWriteFast()` for output-only GPIO called in setup sequences or tight loops.
-Use `digitalWrite()` / `digitalRead()` for general, readable cases.
+Use `digitalWriteFast()` for GPIO in setup sequences or tight loops where cycle count matters.
+It is a third-party library (`digitalWriteFast` by Watterott / NicksonYap) and must be declared
+as a PlatformIO `lib_dep`. Use `digitalWrite()` / `digitalRead()` everywhere else.
+
+### Atomic access for ISR-shared variables
+
+On 8-bit AVR MCUs, reads and writes of any type wider than 8 bits are **not atomic** — an ISR
+firing mid-read can corrupt the value. Always protect shared multi-byte variables with
+`ATOMIC_BLOCK` from `<avr/atomic.h>`:
+
+```cpp
+#include <avr/atomic.h>
+
+// In the ISR (no protection needed — ISRs are non-reentrant by default)
+ISR(TCA0_OVF_vect) {
+    tickCount++;            // volatile uint16_t — safe to write here
+    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;  // clear the flag
+}
+
+// In main-loop / class code — wrap every multi-byte volatile read or write
+uint16_t Driver::getTicks() const {
+    uint16_t snapshot;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        snapshot = tickCount;
+    }
+    return snapshot;
+}
+```
+
+Rules:
+- Use `ATOMIC_RESTORESTATE` (not `ATOMIC_FORCEON`) so that code called from inside an ISR
+  doesn't accidentally re-enable interrupts.
+- Single `uint8_t` / `bool` reads and writes are inherently atomic on AVR — no block needed.
 
 ### Peripheral register writes — configure-then-enable
 
@@ -153,6 +250,31 @@ Serial.println(F("System ready"));
 lcd.print(F("Sensor error"));
 ```
 
+### PROGMEM — keep large const data in flash
+
+On the target AVR cores (megaAVR 0-series, AVR-DA/DB/DD, tinyAVR 2-series) flash is
+memory-mapped into the unified data address space, so `PROGMEM` data can be read with
+normal array indexing — no `pgm_read_*` helpers required.
+
+Declare large read-only arrays with `PROGMEM` to prevent the linker from copying them
+into SRAM at startup:
+
+```cpp
+// Data stays in flash; readable like a normal array
+// (PROGMEM is available via Arduino.h — no extra include needed)
+static const uint8_t SINE_TABLE[256] PROGMEM = { 128, 131, 134, /* … */ };
+
+uint8_t Driver::sineAt(const uint8_t index) const {
+    return SINE_TABLE[index];   // direct access — no pgm_read needed
+}
+```
+
+Rules:
+- `PROGMEM` variables must have `static` storage duration (file-scope or `static` local).
+- Apply to lookup tables, font data, message strings, and any large read-only array.
+- Prefer `PROGMEM` over `F()` for structured data; use `F()` only for inline string literals
+  passed directly to `Serial` / display calls.
+
 ### Null-pointer guard for optional peripherals
 
 When a peripheral pointer can legitimately be absent, guard every access:
@@ -171,10 +293,10 @@ Use explicit-width types everywhere. Avoid bare `int` or `long` when the width m
 |-----------------------------------------------|-------------|----------------------------------------------------|
 | 8-bit register values / pin numbers           | `uint8_t`   | Matches hardware width                             |
 | 16-bit register / timer values                | `uint16_t`  | Explicit width; avoids promotion surprises         |
-| Counters / values that could exceed 16 bits   | `uint32_t`  | Safe on all AVR / 32-bit targets                   |
+| Counters / values that could exceed 16 bits   | `uint32_t`  | Safe for values that overflow 16 bits on AVR       |
 | Values needing full 64-bit range              | `uint64_t`  | Use sparingly; expensive on 8-bit MCUs             |
 | Signed differences / deltas                   | `int32_t` / `int64_t` | Transient; cast back to unsigned after clamp |
-| Boolean flags                                 | `boolean`   | Arduino convention                                 |
+| Boolean flags                                 | `bool`      | Standard C++; `boolean` is deprecated in modern Arduino cores |
 | Signed loop counters / array indices          | `int`       |                                                    |
 
 Use `static_cast<>` rather than C-style casts:
@@ -218,8 +340,20 @@ PERIPH->CTRLA = clkSel; // ENABLE_bm intentionally omitted — start() sets it
 
 ### File-top block
 
-Use a `/** … **/` block at the top of `main.cpp` listing software/hardware revision,
-board target, and URLs for all non-standard libraries used.
+Use a `/** … */` block at the top of `main.cpp` listing software/hardware revision,
+board target, and URLs for all non-standard libraries used:
+
+```cpp
+/**
+ * Project:  MyProject
+ * File:     main.cpp
+ * Board:    AVR128DA48 Curiosity Nano
+ * Revision: hw=1.0  sw=0.3.1
+ *
+ * Libraries:
+ *   • digitalWriteFast  https://github.com/NicksonYap/digitalWriteFast
+ */
+```
 
 ---
 
@@ -241,7 +375,19 @@ SensorReader reader(DATA_PIN,
 - **Trailing newline:** every file ends with exactly one newline.
 - **Line length:** soft limit 100 chars; favour readability over the limit.
 - **`auto`:** use only where the type is unambiguous from the right-hand side or
-  an explicit cast makes it clear.
+  an explicit cast makes it clear. **Never use `auto` for register-width or
+  hardware-interface types** (`uint8_t`, `uint16_t`, `uint32_t`, register pointers, etc.) —
+  integer-promotion rules can silently widen a value to `int`, and the difference between
+  an 8-bit and 16-bit result is invisible at the call site but may corrupt register writes
+  or overflow calculations:
+
+```cpp
+// Bad — promoted to int by arithmetic; actual width is invisible
+auto mask = (statusReg & 0xFF);
+
+// Good — width is explicit and matches the hardware register
+uint8_t mask = static_cast<uint8_t>(statusReg & 0xFF);
+```
 
 ---
 

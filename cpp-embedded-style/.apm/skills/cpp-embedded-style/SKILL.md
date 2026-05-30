@@ -30,18 +30,18 @@ Apply these guidelines every time you generate or modify C++ code for this proje
 
 ## 2. Naming Conventions
 
-| Kind                              | Convention            | Example                                   |
-|-----------------------------------|-----------------------|-------------------------------------------|
-| Classes                           | PascalCase            | `MotorDriver`, `DisplayController`        |
-| Public methods                    | camelCase             | `setSpeed()`, `turnOn()`                  |
-| Private methods                   | camelCase             | `computePwm()`, `getStorageOffset()`      |
-| Private member variables          | camelCase             | `isRunning`, `targetSpeed`                |
-| `const` members (class-scope)     | SCREAMING_SNAKE_CASE  | `MAX_SPEED`, `BAUD_RATE`                  |
-| Local variables                   | camelCase             | `elapsed`, `rawAdc`, `wasOn`              |
-| Function parameters               | camelCase             | `targetRpm`, `ledPin`                     |
-| `#define` pin / hardware constants| SCREAMING_SNAKE_CASE  | `MOTOR_EN`, `STATUS_LED`                  |
-| Enum values                       | SCREAMING_SNAKE_CASE  | `IDLE`, `RUNNING`, `ERROR`                |
-| ISR vectors                       | MCU names verbatim    | `TIMER1_COMPA_vect`, `PORTA_PORT_vect`    |
+| Kind                              | Convention                  | Example                                   |
+|-----------------------------------|-----------------------------|-------------------------------------------|
+| Classes                           | PascalCase                  | `MotorDriver`, `DisplayController`        |
+| Public methods                    | camelCase                   | `setSpeed()`, `turnOn()`                  |
+| Private methods                   | camelCase                   | `computePwm()`, `getStorageOffset()`      |
+| Private member variables          | camelCase (no trailing `_`) | `isRunning`, `targetSpeed`          |
+| `const` members (class-scope)     | SCREAMING_SNAKE_CASE        | `MAX_SPEED`, `BAUD_RATE`                  |
+| Local variables                   | camelCase                   | `elapsed`, `rawAdc`, `wasOn`              |
+| Function parameters               | camelCase                   | `targetRpm`, `ledPin`                     |
+| `#define` pin / hardware constants| SCREAMING_SNAKE_CASE        | `MOTOR_EN`, `STATUS_LED`                  |
+| Enum values                       | SCREAMING_SNAKE_CASE        | `IDLE`, `RUNNING`, `ERROR`                |
+| ISR vectors                       | MCU names verbatim          | `TIMER1_COMPA_vect`, `PORTA_PORT_vect`    |
 
 ---
 
@@ -66,7 +66,7 @@ Always initialize members in the initializer list, not the constructor body, whe
 ```cpp
 SensorReader::SensorReader(const uint8_t dataPin, const uint8_t csPin,
                            SPI& spi, Display& display)
-    : dataPin_(dataPin), csPin_(csPin), spi_(spi), display_(display) { }
+    : dataPin(dataPin), csPin(csPin), spi(spi), display(display) { }
 ```
 
 ### `const` correctness
@@ -86,7 +86,7 @@ When an operation must temporarily change hardware state, save and restore the o
 
 ```cpp
 void Driver::reconfigure(const Config& cfg) {
-    const boolean wasRunning = isRunning_;
+    const boolean wasRunning = isRunning;
     stop();
     // … apply new configuration to hardware …
     if (wasRunning) start();
@@ -157,7 +157,7 @@ lcd.print(F("Sensor error"));
 When a peripheral pointer can legitimately be absent, guard every access:
 
 ```cpp
-if (peripheral_ != nullptr) peripheral_->doSomething();
+if (peripheral != nullptr) peripheral->doSomething();
 ```
 
 ---

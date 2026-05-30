@@ -1,0 +1,8 @@
+name: cpp-embedded-style
+version: 1.0.0
+description: >
+  C++ coding style and architecture guidelines for embedded Arduino projects
+  on ATmega/AVR microcontrollers using MegaCoreX and PlatformIO.
+  Covers naming, class design, hardware access idioms, ISR patterns, type discipline,
+  comment style, and frequency-unit conventions.
+

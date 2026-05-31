@@ -108,7 +108,11 @@ SensorReader::SensorReader(const uint8_t dataPin, const uint8_t csPin,
 ### `const` correctness
 
 - Mark every method that does not mutate state as `const`.
-- Mark every parameter that will not be modified as `const`.
+- Mark every parameter that will not be modified as `const` **in the `.cpp` definition only**.
+  Top-level `const` on value parameters has no effect in a declaration (`.h`) and is flagged by
+  Clang-Tidy (`readability-avoid-const-params-in-decls`) — omit it from headers entirely.
+  Reference and pointer parameters that must not be modified (`const T&`, `const T*`) carry
+  `const` in both the declaration and the definition because it is part of their type.
 - Return `const` references where appropriate to prevent unintended mutation.
 
 ### Private helpers
@@ -342,7 +346,7 @@ if (speed > MAX_SPEED) {
 
 Always use braces, even for single-statement bodies.
 
-- **Blank lines:** one blank line between methods in `.cpp`; 
+- **Blank lines:** one blank line between methods in `.cpp`;
 
 - **Multi-line argument lists:** align continuation lines to the column after the opening `(`:
 
@@ -356,19 +360,30 @@ SensorReader reader(DATA_PIN,
 - **Trailing newline:** every file ends with exactly one newline.
 - **Line length:** soft limit 160 chars; favour readability over the limit.
 
-- **`auto`:** use only where the type is unambiguous from the right-hand side or
-  an explicit cast makes it clear. **Never use `auto` for register-width or
-  hardware-interface types** (`uint8_t`, `uint16_t`, `uint32_t`, register pointers, etc.) —
-  integer-promotion rules can silently widen a value to `int`, and the difference between
-  an 8-bit and 16-bit result is invisible at the call site but may corrupt register writes
-  or overflow calculations:
+- **`auto`:** use only where the type is unambiguous from the right-hand side.
+  When the right-hand side is a `static_cast<T>(...)`, `auto` is acceptable because
+  the type is fully explicit in the cast — repeating it in the declaration adds no information:
+
+```cpp
+// Fine — type is visible in the cast
+auto labelW   = static_cast<int16_t>(strlen(scaleBuf) * 6U);
+auto barHeight = static_cast<int16_t>((colSums[col] * GRAPH_HEIGHT) / colMax);
+```
+
+**Never use `auto` when the type would be implicit** (arithmetic, function return values,
+initialiser lists, etc.) and especially not for register-width or hardware-interface types
+(`uint8_t`, `uint16_t`, `uint32_t`, register pointers, etc.) — integer-promotion rules can
+silently widen a value to `int`, and the difference between an 8-bit and 16-bit result is
+invisible at the call site but may corrupt register writes or overflow calculations:
 
 ```cpp
 // Bad — promoted to int by arithmetic; actual width is invisible
-auto mask = (statusReg & 0xFF);
+auto mask    = statusReg & 0xFF;
+auto ticks   = TCB0.CNT;          // register type is implicit
 
-// Good — width is explicit and matches the hardware register
-uint8_t mask = static_cast<uint8_t>(statusReg & 0xFF);
+// Good — width is explicit
+uint8_t  mask  = static_cast<uint8_t>(statusReg & 0xFF);
+uint16_t ticks = TCB0.CNT;
 ```
 
 - **Column-aligned declarations and assignments:** within a group of related variable

@@ -344,7 +344,19 @@ if (speed > MAX_SPEED) {
 }
 ```
 
-Always use braces, even for single-statement bodies.
+Always use braces, even for single-statement bodies. This applies to macro-based
+block constructs (`ATOMIC_BLOCK`, `NONATOMIC_BLOCK`, etc.) as well — never collapse
+them to a single line:
+
+```cpp
+// Correct — body on its own line even though it's a single statement
+ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    snapshot = sharedValue;
+}
+
+// Wrong — collapsed to one line
+ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { snapshot = sharedValue; }
+```
 
 - **Blank lines:** one blank line between methods in `.cpp`;
 

@@ -341,8 +341,9 @@ if (speed > MAX_SPEED) {
 ```
 
 Always use braces, even for single-statement bodies.
-- **Blank lines:** one blank line between methods in `.cpp`; two blank lines between
-  unrelated logical sections in `main.cpp`.
+
+- **Blank lines:** one blank line between methods in `.cpp`; 
+
 - **Multi-line argument lists:** align continuation lines to the column after the opening `(`:
 
 ```cpp
@@ -353,7 +354,8 @@ SensorReader reader(DATA_PIN,
 ```
 
 - **Trailing newline:** every file ends with exactly one newline.
-- **Line length:** soft limit 100 chars; favour readability over the limit.
+- **Line length:** soft limit 160 chars; favour readability over the limit.
+
 - **`auto`:** use only where the type is unambiguous from the right-hand side or
   an explicit cast makes it clear. **Never use `auto` for register-width or
   hardware-interface types** (`uint8_t`, `uint16_t`, `uint32_t`, register pointers, etc.) —
@@ -367,6 +369,49 @@ auto mask = (statusReg & 0xFF);
 
 // Good — width is explicit and matches the hardware register
 uint8_t mask = static_cast<uint8_t>(statusReg & 0xFF);
+```
+
+- **Column-aligned declarations and assignments:** within a group of related variable
+  declarations or assignments, pad with spaces so that all `=` signs land in the same column.
+  Apply this within a logical block; do not force alignment across unrelated groups.
+
+```cpp
+// Variable declarations — = signs aligned
+volatile bool     pulseDetected = false;
+volatile uint32_t totalCount    = 0;
+uint32_t          secondsElapsed = 0;
+
+// constexpr constants — = signs aligned
+constexpr uint16_t LED_ON_TIME      = 10;
+constexpr uint16_t BUZZER_ON_TIME   = 3;
+constexpr uint16_t BUZZER_FREQUENCY = 2500;
+
+// Related assignments in a block — = signs aligned
+ledIsOn    = true;
+ledOnUntil = millis() + LED_ON_TIME;
+```
+
+- **`const` placement (west-`const`):** always write `const` before the type, never after:
+
+```cpp
+const uint32_t elapsed = millis() - start;   // correct
+uint32_t const elapsed = millis() - start;   // wrong
+```
+
+- **Range-based `for` loops:** always spell out the element type explicitly — never use `auto`:
+
+```cpp
+for (const uint16_t bucket : cpmBuckets) {   // correct
+for (auto bucket : cpmBuckets) {             // wrong
+```
+
+- **Inline `// NOLINT` suppressions:** when a static-analysis warning is unavoidable (e.g.
+  third-party API constraints, AVR-libc header limitations), suppress it inline on the same
+  line with a brief explanation after an em-dash:
+
+```cpp
+#include <string.h> // NOLINT(*-deprecated-headers) — AVR-libc does not provide <cstring>
+Adafruit_SSD1306 display(128, 64, &Wire, -1); // NOLINT(*-interfaces-global-init)
 ```
 
 ---

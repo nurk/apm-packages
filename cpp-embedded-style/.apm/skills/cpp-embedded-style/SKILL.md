@@ -21,26 +21,23 @@ Apply these guidelines every time you generate or modify C++ code for this proje
 - Header guards use `#ifndef PROJECT_CLASSNAME_H` / `#define ...` / `#endif //PROJECT_CLASSNAME_H`.
   Replace `PROJECT` with the project name in SCREAMING_SNAKE_CASE.
 - Include style: always use angle brackets (`#include <...>`), never double quotes (`#include "..."`).
-- Include ordering:
-    1. Own header (`#include <ClassName.h>`)
-    2. Arduino / framework headers (`<Arduino.h>`, `<Wire.h>`, `<SPI.h>`, …)
-    3. Architecture low-level headers (`<avr/io.h>`, `<avr/interrupt.h>`, …)
-    4. Third-party library headers
-    5. Project-local headers
+- Include ordering is **not enforced** — list includes in whatever order is clearest for the file.
+- `<Arduino.h>` is **not mandatory**. Only include it when the file directly uses Arduino API
+  symbols (`pinMode`, `digitalWrite`, `millis`, Arduino type aliases, etc.). If all required
+  symbols are provided by more specific headers (e.g. `<avr/io.h>`, a library header that pulls
+  in `<Arduino.h>` transitively, or `<stdint.h>` for fixed-width types), omit `<Arduino.h>`.
 - Some architecture headers are already pulled in transitively by `<Arduino.h>` (e.g.
   `<avr/pgmspace.h>`) and do not need to be listed explicitly. Others are **not** included
-  transitively and must be listed (e.g. `<avr/atomic.h>` for `ATOMIC_BLOCK`). When in doubt,
+  transitively and must be listed (e.g. `<util/atomic.h>` for `ATOMIC_BLOCK`). When in doubt,
   add the explicit include — it is always safe to include a header more than once.
 
 ### Canonical header file skeleton
-
-Every new class header should follow this structure exactly:
 
 ```cpp
 #ifndef MYPROJECT_MOTORDRIVER_H
 #define MYPROJECT_MOTORDRIVER_H
 
-#include <Arduino.h>
+#include <Arduino.h>   // only if Arduino API symbols are used directly
 
 class MotorDriver {
 public:
@@ -308,7 +305,7 @@ PERIPH->CTRLA = clkSel; // ENABLE_bm intentionally omitted — start() sets it
 - Single space after `//`, sentence-case text.
 - Explain *why*, not *what* — the code already says what.
 
-### File-top block
+### File-top block (optional)
 
 Use a `/** … */` block at the top of `main.cpp` listing software/hardware revision,
 board target, and URLs for all non-standard libraries used:
@@ -343,7 +340,7 @@ if (speed > MAX_SPEED) {
 }
 ```
 
-  Always use braces, even for single-statement bodies.
+Always use braces, even for single-statement bodies.
 - **Blank lines:** one blank line between methods in `.cpp`; two blank lines between
   unrelated logical sections in `main.cpp`.
 - **Multi-line argument lists:** align continuation lines to the column after the opening `(`:
@@ -376,7 +373,7 @@ uint8_t mask = static_cast<uint8_t>(statusReg & 0xFF);
 
 ## 8. Init Function Pattern (`main.cpp`)
 
-Decompose `setup()` into named `initXxx()` helpers — one per subsystem.
+Decompose `setup()` into named `initXxx()` helpers — one per subsystem if the init method become too long.
 Each helper leaves its subsystem in a safe, known state before returning.
 
 ```cpp
